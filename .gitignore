@@ -14,6 +14,7 @@
 bin/
 gen/
 out/
+lib/api_key.dart
 
 # Gradle files
 .gradle/

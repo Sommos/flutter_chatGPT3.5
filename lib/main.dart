@@ -1,4 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../api_key.dart';
+import '../model.dart';
 
 void main() {
   runApp(const MyApp());
@@ -25,15 +30,42 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   late bool isLoading;
-  final TextEditingController _textController = TextEditingController();
+  final _textController = TextEditingController();
   final _scrollController = ScrollController();
-  final List<ChatMessage> message = [];
+  final List<ChatMessage> _messages = [];
 
   @override
   void initState() {
     super.initState();
     isLoading = false;
   }
+
+  Future<String> generateResponse(String prompt) async {
+    const apiKey = apiSecretKey;
+    
+    var url = Uri.https("api.openai.com" , "/v1/completions");
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $apiKey",
+      },
+      body: json.encode({
+        "model": "text-davinci-003",
+        "prompt": prompt,
+        "temperature": 0,
+        "max_tokens": 2000,
+        "top_p": 1,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+      }),
+    );
+
+    // decode json response
+    Map<String, dynamic> newresponse = jsonDecode(response.body);
+
+    return newresponse["choices"][0]["text"];
+  } 
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +123,11 @@ class _ChatPageState extends State<ChatPage> {
       itemCount: _messages.length,
       controller: _scrollController,
       itemBuilder: ((context, index) {
-        return ChatMessageWidget();
+        var message = _messages[index];
+        return ChatMessageWidget(
+          text: message.text,
+          chatMessageType: message.chatMessageType,
+        );
       }),
     );
   }
@@ -125,8 +161,116 @@ class _ChatPageState extends State<ChatPage> {
             Icons.send_rounded,
             color: Color(0xff343541),
           ),
-          onPressed: () {},
+          onPressed: () async {
+            // display user input
+            setState(() {
+              _messages.add(
+                ChatMessage(
+                  text: _textController.text, 
+                  chatMessageType: ChatMessageType.user
+                )
+              );
+              isLoading = true;
+            });
+
+            var input = _textController.text;
+            _textController.clear();
+            Future.delayed(const Duration(milliseconds: 50))
+              .then((_) => _scrollDown());
+            
+            // call chatbot api
+            generateResponse(input).then((value) {
+              setState(() {
+                isLoading = false;
+                // display chatbot response
+                _messages.add(ChatMessage(
+                  text: value, 
+                  chatMessageType: ChatMessageType.bot,
+                ));
+              });
+            });
+            _textController.clear();
+            Future.delayed(const Duration(milliseconds: 50))
+              .then((_) => _scrollDown());
+          },
         ),
+      ),
+    );
+  }
+
+  void _scrollDown() {
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 300), 
+      curve: Curves.easeOut
+    );
+  }
+}
+
+class ChatMessageWidget extends StatelessWidget {
+  final String text;
+  final ChatMessageType chatMessageType;
+  const ChatMessageWidget({
+    super.key,
+    required this.text,
+    required this.chatMessageType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10.0),
+      padding: const EdgeInsets.all(16.0),
+      color: chatMessageType == ChatMessageType.bot
+        ? const Color(0xff444654)
+        : const Color(0xff343541),
+      child: Row(
+        children: [
+          chatMessageType == ChatMessageType.bot
+            ? Container(
+                margin: const EdgeInsets.only(
+                  right: 16
+                ),
+                child: CircleAvatar(
+                  backgroundColor: const Color.fromRGBO(
+                    16, 163, 127, 1
+                  ), 
+                  child: Image.asset(
+                    "lib/images/open_ai.png",
+                    color: Colors.white,
+                    scale: 1.5,
+                  ),
+                ),
+              )
+            : Container(
+                margin: const EdgeInsets.only(right: 16),
+                child: const CircleAvatar(
+                  child: Icon(Icons.person),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8.0), 
+                      decoration: const BoxDecoration(
+                        borderRadius: BorderRadius.all(
+                          Radius.circular(8.0)
+                        ),
+                      ),
+                      child: Text(
+                        text, 
+                        style: Theme.of(context)
+                          .textTheme
+                          .bodyLarge
+                          ?.copyWith(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+        ],
       ),
     );
   }
