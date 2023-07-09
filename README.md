@@ -1,5 +1,5 @@
 # Flutter ChatGPT 3.5
-This program is to test flutter and dart, testing out integration of the ChatGPT 3.5 API.
+This program is to test flutter and dart, testing out integration of the ChatGPT 3.5 public API.
 
 # Contribution 
 
